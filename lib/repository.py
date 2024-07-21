@@ -2,22 +2,29 @@ import os
 import configparser
 
 
-class GitRepository (object):
-    """A git repository"""
+class GitRepository(object):
+    """Represents a Git repository"""
 
     worktree = None
     gitdir = None
     conf = None
 
     def __init__(self, path, force=False):
+        """
+        Initializes a GitRepository object.
+
+        Args:
+            path (str): The path to the repository.
+            force (bool): If True, bypass checks for existing Git repository.
+        """
         self.worktree = path
         self.gitdir = os.path.join(path, ".git")
 
-        # Check if the directory is a Git repository
+        # Check if the specified directory is a Git repository
         if not (force or os.path.isdir(self.gitdir)):
             raise Exception("Not a Git repository %s" % path)
 
-        # Read configuration file in .git/config
+        # Initialize configuration parser
         self.conf = configparser.ConfigParser()
         cf = repo_file(self, "config")
 
@@ -38,28 +45,52 @@ class GitRepository (object):
 
 
 def repo_path(repo, *path):
-    # Computes path under repo's gitdir
+    """
+    Computes a path under the repository's .git directory.
+
+    Args:
+        repo (GitRepository): The GitRepository object.
+        *path (str): Components of the path to compute.
+
+    Returns:
+        str: The computed path.
+    """
     return os.path.join(repo.gitdir, *path)
 
 
-'''
-The next two functions, repo_file() and repo_dir(), return and optionally create a path to a file or a directory, respectively. 
-The difference between them is that the file version only creates directories up to the last component.
-'''
-
-
 def repo_file(repo, *path, mkdir=False):
-    # Same as repo_path but creates dirname(*path) if absent
+    """
+    Computes a file path under the repository's .git directory and creates any necessary directories.
+
+    Args:
+        repo (GitRepository): The GitRepository object.
+        *path (str): Components of the file path to compute.
+        mkdir (bool): If True, create directories up to the last component.
+
+    Returns:
+        str: The file path.
+    """
+    # Create directories if necessary
     if repo_dir(repo, *path[:-1], mkdir=mkdir):
         return repo_path(repo, *path)
 
 
 def repo_dir(repo, *path, mkdir=False):
-    # Same as repo_path, but mkdir *path if absent if mkdir
+    """
+    Computes a directory path under the repository's .git directory and optionally creates it.
+
+    Args:
+        repo (GitRepository): The GitRepository object.
+        *path (str): Components of the directory path to compute.
+        mkdir (bool): If True, create the directory if it does not exist.
+
+    Returns:
+        str: The directory path, or None if the directory was not created.
+    """
     path = repo_path(repo, *path)
 
     if os.path.exists(path):
-        if (os.path.isdir(path)):
+        if os.path.isdir(path):
             return path
         else:
             raise Exception("Not a directory %s" % path)
@@ -72,10 +103,18 @@ def repo_dir(repo, *path, mkdir=False):
 
 
 def repo_create(path):
-    # Create a new repository at path
+    """
+    Creates a new Git repository at the specified path.
+
+    Args:
+        path (str): The path where the new repository will be created.
+
+    Returns:
+        GitRepository: The newly created GitRepository object.
+    """
     repo = GitRepository(path, True)
 
-    # check if path either deosn't exist or is an empty dir
+    # Check if the path is a valid directory and is empty
     if os.path.exists(repo.worktree):
         if not os.path.isdir(repo.worktree):
             raise Exception("%s is not a directory!" % path)
@@ -84,20 +123,22 @@ def repo_create(path):
     else:
         os.makedirs(repo.worktree)
 
+    # Create necessary directories and files
     assert repo_dir(repo, "branches", mkdir=True)
     assert repo_dir(repo, "objects", mkdir=True)
     assert repo_dir(repo, "refs", "tags", mkdir=True)
     assert repo_dir(repo, "refs", "heads", mkdir=True)
 
-    # .git/description
+    # Create .git/description file
     with open(repo_file(repo, "description"), "w") as f:
         f.write(
             "Unnamed repository; edit this file 'description' to name the repository.\n")
 
-    # .git/HEAD
+    # Create .git/HEAD file
     with open(repo_file(repo, "HEAD"), "w") as f:
         f.write("ref: refs/heads/master\n")
 
+    # Create .git/config file with default configuration
     with open(repo_file(repo, "config"), "w") as f:
         config = repo_default_config()
         config.write(f)
@@ -106,6 +147,12 @@ def repo_create(path):
 
 
 def repo_default_config():
+    """
+    Creates the default configuration for a new Git repository.
+
+    Returns:
+        configparser.ConfigParser: The default configuration.
+    """
     ret = configparser.ConfigParser()
 
     ret.add_section("core")
@@ -116,25 +163,30 @@ def repo_default_config():
     return ret
 
 
-'''
-The repo_find() function will look for that root, starting at the current directory and recursing back to /. 
-To identify a path as a repository, it will check for the presence of a .git directory.
-'''
-
-
 def repo_find(path=".", required=True):
+    """
+    Finds the root of a Git repository by searching upwards from the specified path.
+
+    Args:
+        path (str): The starting path for the search.
+        required (bool): If True, raise an exception if no Git repository is found.
+
+    Returns:
+        GitRepository: The GitRepository object if found.
+
+    Raises:
+        Exception: If no Git repository is found and required is True.
+    """
     path = os.path.realpath(path)
 
     if os.path.isdir(os.path.join(path, ".git")):
         return GitRepository(path)
 
-    # If we haven't returned, recurse in parent, if w
+    # Recurse up to parent directory
     parent = os.path.realpath(os.path.join(path, ".."))
 
     if parent == path:
-        # Bottom case
-        # os.path.join("/", "..") == "/":
-        # If parent==path, then path is root.
+        # Reached the root directory
         if required:
             raise Exception("No git directory.")
         else:
