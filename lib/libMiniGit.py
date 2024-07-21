@@ -11,6 +11,7 @@ import zlib
 from datetime import datetime
 from fnmatch import fnmatch
 from math import ceil
+from . import repository
 
 # inital setup
 argparser = argparse.ArgumentParser(description="content tracker")
@@ -36,5 +37,19 @@ def main(argv=sys.argv[1:]):
         case "show-ref": cmd_show_ref(args)
         case "status": cmd_status(args)
         case "tag": cmd_tag(args)
-        case _: print("Command does not exist")
+        case _: print("Bad command.")
 
+# region miniGit init
+
+
+argsp = argsubparsers.add_parser(
+    "init", help="Initialize a new, empty repository.")
+
+argsp.add_argument("path", metavar="directory", nargs="?",
+                   default=".", help="Where to create the repository.")
+
+
+def cmd_init(args):
+    repository.repo_create(args.path)
+
+# endregion
